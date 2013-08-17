@@ -15,6 +15,8 @@
 # along with memprof.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shutil
+import subprocess
 import sys
 from setuptools import setup, Extension
 from setuptools.command.easy_install import easy_install
@@ -31,6 +33,9 @@ except ImportError:
   
 getsize = Extension('memprof.getsize',
   sources = ['memprof/getsize.pyx'])
+
+version = "0.3.2"
+mp_plot_path = "scripts/mp_plot"
 
 def read(fname):
   return open(os.path.join(os.path.dirname(__file__), fname)).read()
@@ -52,14 +57,14 @@ class md_easy_install(easy_install):
     
 setup(
   name = "memprof",
-  version = "0.3.2",
+  version = version,
   author = "Jose M. Dana",
   description = ("A memory profiler for Python. As easy as adding a decorator."),
   license = "GNU General Public License v3 (GPLv3)",
   keywords = "memory usage profiler decorator variables charts plots graphical",
   url = "http://jmdana.github.io/memprof/",
   packages=['memprof'],
-  scripts=['scripts/mp_plot'],
+  scripts=[mp_plot_path],
   cmdclass = {'easy_install': md_easy_install, 'build_ext': build_ext},
   zip_safe=False,
   long_description=read('README.md'),
@@ -90,4 +95,46 @@ setup(
   test_suite = "testsuite",
 )
 
+manpage_basename = "mp_plot.1"
+manpage_fname = manpage_basename + ".gz"
 
+def build_manpages():
+  try:
+    man_page = subprocess.check_output(["help2man", "--version-string", version, "--no-info", mp_plot_path])
+  except OSError as err:
+    if err.errno == 2:
+      print("help2man not found, not building manpages")
+      return
+    else:
+      raise
+
+  man_page = man_page.decode("utf-8")
+  with open(manpage_basename, "w") as f:
+    f.write(man_page)
+
+  try:
+    subprocess.call(["gzip", "-f", manpage_basename])
+  except OSError as err:
+    if err.errno == 2:
+      print("gzip not found, not building manpages")
+      os.unlink(manpage_basename)
+      return
+    else:
+      raise
+
+def install_manpages():
+  man_path = os.path.join(sys.prefix, "share", "man", "man1")
+  if (os.path.exists(manpage_fname)):
+    shutil.copy2(manpage_fname, man_path)
+
+if 'clean' in sys.argv:
+  if os.path.exists(manpage_basename):
+    os.remove(manpage_basename)
+  if os.path.exists(manpage_fname):
+    os.remove(manpage_fname)
+
+if 'build' in sys.argv:
+  build_manpages()
+
+if 'install' in sys.argv:
+  install_manpages()
